@@ -1,7 +1,7 @@
 import json
 import time
 import requests
-from selenium.common import WebDriverException, NoSuchElementException
+from selenium.common import WebDriverException, NoSuchElementException, TimeoutException
 from selenium.webdriver import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webdriver import WebDriver
@@ -14,8 +14,8 @@ import boto3
 
 
 URL = r'https://www.airbnb.com/rooms/49618152?source_impression_id=p3_1687811285_G%2FolX9F31QF8p63U'
-URL_2 = r'https://ru.airbnb.com/rooms/726845935107239384?check_in=2023-07-05&check_out=2023-07-06&source_impression_id=p3_1687819777_BqNCRUgSPbNKcVUA&previous_page_section_name=1000&federated_search_id=59ba7a88-e9b2-424c-a79d-46562440ed81'
-URL_3 = r'https://ru.airbnb.com/rooms/50717920?check_in=2023-07-05&check_out=2023-07-06&source_impression_id=p3_1687819777_4oY1v%2FgWcVxfJrHp&previous_page_section_name=1000&federated_search_id=59ba7a88-e9b2-424c-a79d-46562440ed81'
+URL_2 = r'https://www.airbnb.com/rooms/726845935107239384?check_in=2023-07-05&check_out=2023-07-06&source_impression_id=p3_1687819777_BqNCRUgSPbNKcVUA&previous_page_section_name=1000&federated_search_id=59ba7a88-e9b2-424c-a79d-46562440ed81'
+URL_3 = r'https://www.airbnb.com/rooms/50717920?check_in=2023-07-05&check_out=2023-07-06&source_impression_id=p3_1687819777_4oY1v%2FgWcVxfJrHp&previous_page_section_name=1000&federated_search_id=59ba7a88-e9b2-424c-a79d-46562440ed81'
 
 
 POPUP_MODAL = (By.CSS_SELECTOR, '[data-testid="translation-announce-modal"]')
@@ -25,9 +25,13 @@ BLOCK_PHOTOS_VISIBLE = (By.CSS_SELECTOR, '[data-testid="photo-viewer-section"]')
 FOLDER = False
 
 
-def _waiter_element_visible(driver: WebDriver, locator: tuple[str, str]) -> None:
-    element = EC.visibility_of_element_located(locator)
-    WebDriverWait(driver, 10).until(element)
+def _waiter_element_visible(driver: WebDriver, locator: tuple[str, str], time_out: int = 3) -> bool:
+    try:
+        element = EC.visibility_of_element_located(locator)
+        WebDriverWait(driver, time_out).until(element)
+        return True
+    except TimeoutException:
+        return False
 
 
 def _waiter_element_clickable(driver: WebDriver, locator: tuple[str, str]) -> None:
@@ -42,12 +46,12 @@ def _get_main_description(driver: WebDriver) -> str:
 
 
 def get_info_from_url(driver: WebDriver, url: str) -> dict:
-    driver.get(url)
-    time.sleep(5)
-    if os.environ["SELENIUM_DRIVER_KIND"].lower() != "remote":
-        # We wait Modal
-        _waiter_element_visible(driver=driver, locator=POPUP_MODAL)
 
+    driver.get(url)
+
+    # We wait Modal
+    translate_modal = _waiter_element_visible(driver=driver, locator=POPUP_MODAL)
+    if translate_modal:
         # Close Modal window
         driver.find_elements(By.CSS_SELECTOR, '[role="dialog"]')[-1].find_element(By.TAG_NAME, 'svg').click()
 
@@ -59,7 +63,6 @@ def get_info_from_url(driver: WebDriver, url: str) -> dict:
               'description': _get_main_description(driver=driver),
               'url': url,
               }
-
     # Click on button 'Show photo
     driver.find_element(By.CLASS_NAME, '_uhxsfg').click()
 
@@ -143,6 +146,7 @@ def download_and_save_img(content: dict[str]) -> dict:
             response = requests.get(url=url)
             print(f'{url}, Content type : {response.headers["Content-Type"]}')
             file_name = f'{key}'
+            # TODO Надо заменить этот параметр
             if 'BUCKET' in os.environ.keys():
                 _s3_worker(folder_name=folder_name, file_name=file_name, data=response.content)
             else:
@@ -161,7 +165,7 @@ def download_and_save_img(content: dict[str]) -> dict:
 def main() -> None:
     start = time.time()
     driver = get_driver()
-    r = get_info_from_url(driver=driver, url=URL)
+    r = get_info_from_url(driver=driver, url=URL_3)
     print('Количество фоток:', len(r))
     download_and_save_img(content=r)
     print(f'Затраченное время: {time.time() - start}')

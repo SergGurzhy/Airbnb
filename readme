@@ -1,6 +1,6 @@
 
 1. Download:          docker pull browserless/chrome:latest
 2. Run Chrome:        docker run -p 127.0.0.1:3000:3000 browserless/chrome
-3. Build image app:   docker build -t airbnd_test_1:latest .
+3. Build image app:   docker build --build-arg PARAM_1=<BUCKET_NAME> --build-arg PARAM_2=<KEY> --build-arg PARAM_3=<SECRET_KEY> -t airbnd_test_1:latest .
 4. Run App:           docker run --network=host airbnd_test_1
 
