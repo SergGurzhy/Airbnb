@@ -19,7 +19,7 @@ URL_3 = r'https://ru.airbnb.com/rooms/50717920?check_in=2023-07-05&check_out=202
 
 
 POPUP_MODAL = (By.CSS_SELECTOR, '[data-testid="translation-announce-modal"]')
-BUTTON_VISIBLE = (By.CLASS_NAME, "_uhxsfg")
+BUTTON_SHOW_PHOTO = (By.CLASS_NAME, "_uhxsfg")
 BLOCK_PHOTOS_VISIBLE = (By.CSS_SELECTOR, '[data-testid="photo-viewer-section"]')
 
 FOLDER = False
@@ -27,6 +27,11 @@ FOLDER = False
 
 def _waiter_element_visible(driver: WebDriver, locator: tuple[str, str]) -> None:
     element = EC.visibility_of_element_located(locator)
+    WebDriverWait(driver, 10).until(element)
+
+
+def _waiter_element_clickable(driver: WebDriver, locator: tuple[str, str]) -> None:
+    element = EC.element_to_be_clickable(locator)
     WebDriverWait(driver, 10).until(element)
 
 
@@ -39,15 +44,15 @@ def _get_main_description(driver: WebDriver) -> str:
 def get_info_from_url(driver: WebDriver, url: str) -> dict:
     driver.get(url)
     time.sleep(5)
-    # if os.environ["SELENIUM_DRIVER_KIND"].lower() != "remote":
-    #     # We wait Modal
-    #     _waiter_element_visible(driver=driver, locator=POPUP_MODAL)
-    #
-    #     # Close Modal window
-    #     driver.find_elements(By.CSS_SELECTOR, '[role="dialog"]')[-1].find_element(By.TAG_NAME, 'svg').click()
+    if os.environ["SELENIUM_DRIVER_KIND"].lower() != "remote":
+        # We wait Modal
+        _waiter_element_visible(driver=driver, locator=POPUP_MODAL)
 
-    # Wait Button 'Show photo'
-    _waiter_element_visible(driver=driver, locator=BUTTON_VISIBLE)
+        # Close Modal window
+        driver.find_elements(By.CSS_SELECTOR, '[role="dialog"]')[-1].find_element(By.TAG_NAME, 'svg').click()
+
+    # Wait Button 'Show photo' clickable
+    _waiter_element_clickable(driver=driver, locator=BUTTON_SHOW_PHOTO)
 
     # Get Description Location
     result = {'title': driver.find_element(By.TAG_NAME, 'h1').text.strip(),
@@ -155,7 +160,6 @@ def download_and_save_img(content: dict[str]) -> dict:
 
 def main() -> None:
     start = time.time()
-    # _s3_worker(folder_name='test', file_name='')
     driver = get_driver()
     r = get_info_from_url(driver=driver, url=URL)
     print('Количество фоток:', len(r))
