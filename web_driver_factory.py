@@ -1,10 +1,12 @@
 import os
 
 import undetected_chromedriver
+from retry import retry
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium import webdriver
 from selenium.webdriver.remote.webdriver import WebDriver
+from urllib3.exceptions import NewConnectionError, MaxRetryError
 from webdriver_manager.chrome import ChromeDriverManager
 
 
@@ -20,8 +22,8 @@ def get_driver() -> WebDriver:
         )
 
 
+@retry(MaxRetryError, tries=5, delay=3)
 def get_remote_driver() -> WebDriver:
-
     remote_host: str = os.getenv('REMOTE_DRIVER_HOST', 'localhost').lower()
     options = Options()
     options.add_argument("--headless")
