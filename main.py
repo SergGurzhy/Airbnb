@@ -12,17 +12,17 @@ import os
 from web_driver_factory import get_driver
 import boto3
 
-
 URL = r'https://www.airbnb.com/rooms/49618152?source_impression_id=p3_1687811285_G%2FolX9F31QF8p63U'
 URL_2 = r'https://www.airbnb.com/rooms/726845935107239384?check_in=2023-07-05&check_out=2023-07-06&source_impression_id=p3_1687819777_BqNCRUgSPbNKcVUA&previous_page_section_name=1000&federated_search_id=59ba7a88-e9b2-424c-a79d-46562440ed81'
 URL_3 = r'https://www.airbnb.com/rooms/50717920?check_in=2023-07-05&check_out=2023-07-06&source_impression_id=p3_1687819777_4oY1v%2FgWcVxfJrHp&previous_page_section_name=1000&federated_search_id=59ba7a88-e9b2-424c-a79d-46562440ed81'
-
 
 POPUP_MODAL = (By.CSS_SELECTOR, '[data-testid="translation-announce-modal"]')
 BUTTON_SHOW_PHOTO = (By.CLASS_NAME, "_uhxsfg")
 BLOCK_PHOTOS_VISIBLE = (By.CSS_SELECTOR, '[data-testid="photo-viewer-section"]')
 
 FOLDER = False
+
+PHOTOS = dict()
 
 
 def _waiter_element_visible(driver: WebDriver, locator: tuple[str, str], time_out: int = 3) -> bool:
@@ -46,7 +46,7 @@ def _get_main_description(driver: WebDriver) -> str:
 
 
 def get_info_from_url(driver: WebDriver, url: str) -> dict:
-
+    start = time.time()
     driver.get(url)
 
     # We wait Modal
@@ -83,10 +83,12 @@ def get_info_from_url(driver: WebDriver, url: str) -> dict:
                 img_description = content.get_attribute('alt').strip()
                 url = content.get_attribute('src')
                 result[key] = [img_description, url]
+                PHOTOS[key] = url
                 count += 1
             except WebDriverException as _ex:
                 count += 1
                 continue
+    print(f'FINDER TIME: {start - time.time()}')
     driver.close()
     driver.quit()
     return result
@@ -97,7 +99,7 @@ def _s3_worker(folder_name: str, file_name: str, data: bytes | dict) -> None:
     bucket_name = os.environ['BUCKET'].lower()
     s3 = boto3.resource('s3')
     if not FOLDER:
-        s3.Bucket(bucket_name).put_object(Bucket=bucket_name, Key=(folder_name+'/'))
+        s3.Bucket(bucket_name).put_object(Bucket=bucket_name, Key=(folder_name + '/'))
         FOLDER = True
     if isinstance(data, dict):
         data = json.dumps(data)
@@ -132,7 +134,12 @@ def _save_image(folder_path: str, file_name: str, data: bytes) -> None:
         file.write(data)
 
 
+def save_photo():
+    pass
+
+
 def download_and_save_img(content: dict[str]) -> dict:
+    start = time.time()
     global folder_path
     folder_name: str = _create_folder_name(title=content['title'])
     env_kind = os.environ.get('SAVE_LOCAL').lower()
@@ -143,6 +150,8 @@ def download_and_save_img(content: dict[str]) -> dict:
     for key, val in content.items():
         if isinstance(val, list):
             url = val[1].replace('w=720', 'w=1440')
+            with open('urls.txt', 'a', encoding='UTF-8') as file:
+                file.write(str(url) + ',')
             response = requests.get(url=url)
             print(f'{url}, Content type : {response.headers["Content-Type"]}')
             file_name = f'{key}'
@@ -158,14 +167,14 @@ def download_and_save_img(content: dict[str]) -> dict:
         _save_description(folder_path=folder_path, data=result)
     else:
         _s3_worker(folder_name=folder_name, file_name='description.json', data=result)
-
+    print(f'DOWNLOADER TIME: {start - time.time()}')
     return result
 
 
 def main() -> None:
     start = time.time()
     driver = get_driver()
-    r = get_info_from_url(driver=driver, url=URL_3)
+    r = get_info_from_url(driver=driver, url=URL_2)
     print('Количество фоток:', len(r))
     download_and_save_img(content=r)
     print(f'Затраченное время: {time.time() - start}')
